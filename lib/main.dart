@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
-import 'dart:math';
 
 void main() {
   runApp(MyApp());
@@ -14,8 +13,8 @@ class MyApp extends StatelessWidget {
       create: (_) => ItemProvider(),
       child: MaterialApp(
         title: 'Box Tracker',
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
+        theme: ThemeData.light().copyWith(
+          primaryColor: Colors.blue,
           visualDensity: VisualDensity.adaptivePlatformDensity,
         ),
         home: HomeScreen(),
@@ -87,12 +86,15 @@ class ItemList extends StatelessWidget {
 
     return Column(
       children: [
-        TextField(
-          controller: searchController,
-          decoration: InputDecoration(labelText: 'Search Items'),
-          onChanged: (value) {
-            itemProvider.searchItems(value);
-          },
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            controller: searchController,
+            decoration: InputDecoration(labelText: 'Search Items'),
+            onChanged: (value) {
+              itemProvider.searchItems(value);
+            },
+          ),
         ),
         Expanded(
           child: ListView.builder(
@@ -139,6 +141,7 @@ class ItemList extends StatelessWidget {
     return colors[tag.hashCode % colors.length];
   }
 }
+
 class QRCodeScannerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -157,7 +160,6 @@ class QRCodeScannerScreen extends StatelessWidget {
     );
   }
 }
-
 class AddItemFormScreen extends StatefulWidget {
   final String qrCode;
 
@@ -281,6 +283,13 @@ class _AddItemFormScreenState extends State<AddItemFormScreen> {
               },
               child: Text('Add Item'),
             ),
+            SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Go back to the main view
+              },
+              child: Text('Cancel'),
+            ),
           ],
         ),
       ),
@@ -290,6 +299,7 @@ class _AddItemFormScreenState extends State<AddItemFormScreen> {
   Color _getTagColor(String tag) {
     return tagColors[tag.hashCode % tagColors.length];
   }
+
   void _showAddRoomDialog(BuildContext context) {
     final TextEditingController roomController = TextEditingController();
     showDialog(
@@ -307,6 +317,9 @@ class _AddItemFormScreenState extends State<AddItemFormScreen> {
                 final roomName = roomController.text;
                 if (roomName.isNotEmpty) {
                   Provider.of<ItemProvider>(context, listen: false).addRoom(roomName);
+                  setState(() {
+                    selectedRoom = roomName; // Auto-select the newly added room
+                  });
                   Navigator.of(context).pop();
                 }
               },
