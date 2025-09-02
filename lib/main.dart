@@ -36,13 +36,11 @@ class ItemProvider with ChangeNotifier {
   List<Item> _items = [];
   List<String> _rooms = [];
   List<String> _globalTags = [
-    'Important',
-    'To Do',
+    'Books',
+    'Documents',
     'Archive',
-    'Personal',
-    'Work',
-    'Urgent',
-    'Miscellaneous',
+    'Toys',
+    'Misc.',
   ];
 
   List<Item> get items => _items;
@@ -181,13 +179,16 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
       appBar: AppBar(
         title: Text('QR Scanner'),
       ),
-      body: MobileScanner(
-          onDetect: (barcode) async {
-            final String code = barcode.barcodes.first.rawValue!;
-            Navigator.of(context).push(MaterialPageRoute(
-              builder: (context) => AddItemFormScreen(qrCode: code),
-            ));
-          }
+      body: SafeArea(
+        child:
+        MobileScanner(
+            onDetect: (barcode) async {
+              final String code = barcode.barcodes.first.rawValue!;
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) => AddItemFormScreen(qrCode: code),
+              ));
+            }
+        ),
       ),
     );
   }
@@ -222,6 +223,10 @@ class _AddItemFormScreenState extends State<AddItemFormScreen> {
     Color(0xFF795548), // Brown
     Color(0xFF607D8B), // Blue Grey
     Color(0xFFFFEB3B), // Yellow
+    Color(0xFFCDDC39), // Lime
+    Color(0xFF00BCD4), // Cyan
+    Color(0xFF673AB7), // Deep Purple
+    Color(0xFF3E2723), // Dark Brown
   ];
 
   @override
@@ -229,113 +234,120 @@ class _AddItemFormScreenState extends State<AddItemFormScreen> {
     final itemProvider = Provider.of<ItemProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Add New Item'),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
+        appBar: AppBar(
+          title: Text('Add New Item'),
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
         ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: InputDecoration(labelText: 'Item Name'),
-              onTap: () {
-                FocusScope.of(context).requestFocus(FocusNode()); // Dismiss keyboard
-              },
-            ),
-            DropdownButton<String>(
-              value: selectedRoom,
-              hint: Text('Select Room'),
-              items: itemProvider.rooms.map((room) {
-                return DropdownMenuItem<String>(
-                  value: room,
-                  child: Text(room),
-                );
-              }).toList()
-                ..add(DropdownMenuItem<String>(
-                  value: 'Add New Room',
-                  child: Text('Add New Room'),
-                )),
-              onChanged: (value) {
-                if (value == 'Add New Room') {
-                  _showAddRoomDialog(context);
-                } else {
-                  setState(() {
-                    selectedRoom = value;
-                  });
-                }
-              },
-            ),
-            DropdownButton<String>(
-              hint: Text('Select Tags'),
-              items: itemProvider.globalTags.map((tag) {
-                return DropdownMenuItem<String>(
-                  value: tag,
-                  child: Text(tag),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    tags.add(value);
-                    tagsController.text = tags.join(', '); // Update the text field
-                  });
-                }
-              },
-            ),
-            Wrap(
-              children: tags.map((tag) {
-                return Container(
-                  margin: EdgeInsets.all(4.0),
-                  padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                  decoration: BoxDecoration(
-                    color: _getTagColor(tag),
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                  child: Text(tag, style: TextStyle(color: _getTextColor(_getTagColor(tag)))),
-                );
-              }).toList(),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                if (nameController.text.isEmpty || selectedRoom == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Please fill in all fields.')),
-                  );
-                  return;
-                }
+        body: SafeArea(
+          child:
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(labelText: 'Item Name'),
+                  onTap: () {
+                    FocusScope.of(context).requestFocus(FocusNode()); // Dismiss keyboard
+                  },
+                ),
+                DropdownButton<String>(
+                  value: selectedRoom,
+                  hint: Text('Select Room'),
+                  items: itemProvider.rooms.map((room) {
+                    return DropdownMenuItem<String>(
+                      value: room,
+                      child: Text(room),
+                    );
+                  }).toList()
+                    ..add(DropdownMenuItem<String>(
+                      value: 'Add New Room',
+                      child: Text('Add New Room'),
+                    )),
+                  onChanged: (value) {
+                    if (value == 'Add New Room') {
+                      _showAddRoomDialog(context);
+                    } else {
+                      setState(() {
+                        selectedRoom = value;
+                      });
+                    }
+                  },
+                ),
+                DropdownButton<String>(
+                  hint: Text('Select Tags'),
+                  items: itemProvider.globalTags.map((tag) {
+                    return DropdownMenuItem<String>(
+                      value: tag,
+                      child: Text(tag),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        tags.add(value);
+                        tagsController.text = tags.join(', '); // Update the text field
+                      });
+                    }
+                  },
+                ),
+                Wrap(
+                  children: tags.map((tag) {
+                    return Container(
+                      margin: EdgeInsets.all(4.0),
+                      padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      decoration: BoxDecoration(
+                        color: _getTagColor(tag),
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: Text(tag, style: TextStyle(color: _getTextColor(_getTagColor(tag)))),
+                    );
+                  }).toList(),
+                ),
+                SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () {
+                    if (nameController.text.isEmpty || selectedRoom == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Please fill in all fields.')),
+                      );
+                      return;
+                    }
 
-                final item = Item(
-                  qrCode: widget.qrCode,
-                  roomTag: selectedRoom ?? '',
-                  name: nameController.text,
-                  tags: tags,
-                );
-                itemProvider.addItem(item);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Item added successfully!')),
-                );
-                Navigator.of(context).pop();
-              },
-              child: Text('Add Item'),
+                    final item = Item(
+                      qrCode: widget.qrCode,
+                      roomTag: selectedRoom ?? '',
+                      name: nameController.text,
+                      tags: tags,
+                    );
+                    itemProvider.addItem(item);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Item added successfully!')),
+                    );
+                    Navigator.of(context).pop();
+                  },
+                  child: Text('Add Item'),
+                ),
+                SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Go back to the main view
+                  },
+                  child: Text('Cancel'),
+                ),
+              ],
             ),
-            SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // Go back to the main view
-              },
-              child: Text('Cancel'),
-            ),
-          ],
-        ),
-      ),
+          ),
+
+
+
+        )
+
     );
   }
 
