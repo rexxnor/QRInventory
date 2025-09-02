@@ -35,9 +35,19 @@ class Item {
 class ItemProvider with ChangeNotifier {
   List<Item> _items = [];
   List<String> _rooms = [];
+  List<String> _globalTags = [
+    'Important',
+    'To Do',
+    'Archive',
+    'Personal',
+    'Work',
+    'Urgent',
+    'Miscellaneous',
+  ];
 
   List<Item> get items => _items;
   List<String> get rooms => _rooms;
+  List<String> get globalTags => _globalTags;
 
   void addItem(Item item) {
     _items.add(item);
@@ -55,6 +65,7 @@ class ItemProvider with ChangeNotifier {
     return _items.where((item) => item.name.contains(query) || item.tags.contains(query) || item.roomTag.contains(query)).toList();
   }
 }
+
 
 class HomeScreen extends StatelessWidget {
   @override
@@ -137,12 +148,33 @@ class ItemList extends StatelessWidget {
       Color(0xFF795548), // Brown
       Color(0xFF607D8B), // Blue Grey
       Color(0xFFFFEB3B), // Yellow
+      Color(0xFFCDDC39), // Lime
+      Color(0xFF00BCD4), // Cyan
+      Color(0xFF673AB7), // Deep Purple
+      Color(0xFF3E2723), // Dark Brown
     ];
     return colors[tag.hashCode % colors.length];
   }
+
+  Color _getTextColor(Color backgroundColor) {
+    // Calculate luminance to determine text color
+    return (backgroundColor.computeLuminance() > 0.5) ? Colors.black : Colors.white;
+  }
 }
 
-class QRCodeScannerScreen extends StatelessWidget {
+class QRCodeScannerScreen extends StatefulWidget {
+  @override
+  _QRCodeScannerScreenState createState() => _QRCodeScannerScreenState();
+}
+class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
+  MobileScannerController controller = MobileScannerController();
+
+  @override
+  void dispose() {
+    controller.dispose(); // Dispose of the controller to release resources
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -160,6 +192,8 @@ class QRCodeScannerScreen extends StatelessWidget {
     );
   }
 }
+
+
 class AddItemFormScreen extends StatefulWidget {
   final String qrCode;
 
@@ -170,6 +204,7 @@ class AddItemFormScreen extends StatefulWidget {
 }
 
 class _AddItemFormScreenState extends State<AddItemFormScreen> {
+
   final TextEditingController nameController = TextEditingController();
   final TextEditingController tagsController = TextEditingController();
   String? selectedRoom;
@@ -237,13 +272,21 @@ class _AddItemFormScreenState extends State<AddItemFormScreen> {
                 }
               },
             ),
-            TextField(
-              controller: tagsController,
-              decoration: InputDecoration(labelText: 'Tags (comma separated)'),
+            DropdownButton<String>(
+              hint: Text('Select Tags'),
+              items: itemProvider.globalTags.map((tag) {
+                return DropdownMenuItem<String>(
+                  value: tag,
+                  child: Text(tag),
+                );
+              }).toList(),
               onChanged: (value) {
-                setState(() {
-                  tags = value.split(',').map((tag) => tag.trim()).toList();
-                });
+                if (value != null) {
+                  setState(() {
+                    tags.add(value);
+                    tagsController.text = tags.join(', '); // Update the text field
+                  });
+                }
               },
             ),
             Wrap(
