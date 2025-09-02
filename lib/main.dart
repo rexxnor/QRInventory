@@ -14,6 +14,10 @@ class MyApp extends StatelessWidget {
       create: (_) => ItemProvider(),
       child: MaterialApp(
         title: 'Box Tracker',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          visualDensity: VisualDensity.adaptivePlatformDensity,
+        ),
         home: HomeScreen(),
       ),
     );
@@ -49,7 +53,7 @@ class ItemProvider with ChangeNotifier {
   }
 
   List<Item> searchItems(String query) {
-    return _items.where((item) => item.name.contains(query) || item.tags.contains(query)).toList();
+    return _items.where((item) => item.name.contains(query) || item.tags.contains(query) || item.roomTag.contains(query)).toList();
   }
 }
 
@@ -98,6 +102,19 @@ class ItemList extends StatelessWidget {
               return ListTile(
                 title: Text(item.name),
                 subtitle: Text('Room: ${item.roomTag}'),
+                trailing: Wrap(
+                  spacing: 6, // space between tags
+                  children: item.tags.map((tag) {
+                    return Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _getTagColor(tag),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(tag, style: TextStyle(color: Colors.white)),
+                    );
+                  }).toList(),
+                ),
               );
             },
           ),
@@ -105,11 +122,24 @@ class ItemList extends StatelessWidget {
       ],
     );
   }
+
+  Color _getTagColor(String tag) {
+    final colors = [
+      Color(0xFF4CAF50), // Green
+      Color(0xFF2196F3), // Blue
+      Color(0xFFFF9800), // Orange
+      Color(0xFFF44336), // Red
+      Color(0xFF9C27B0), // Purple
+      Color(0xFF3F51B5), // Indigo
+      Color(0xFF009688), // Teal
+      Color(0xFF795548), // Brown
+      Color(0xFF607D8B), // Blue Grey
+      Color(0xFFFFEB3B), // Yellow
+    ];
+    return colors[tag.hashCode % colors.length];
+  }
 }
-
 class QRCodeScannerScreen extends StatelessWidget {
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -142,6 +172,20 @@ class _AddItemFormScreenState extends State<AddItemFormScreen> {
   final TextEditingController tagsController = TextEditingController();
   String? selectedRoom;
   List<String> tags = [];
+
+  // Predefined list of colors for tags
+  final List<Color> tagColors = [
+    Color(0xFF4CAF50), // Green
+    Color(0xFF2196F3), // Blue
+    Color(0xFFFF9800), // Orange
+    Color(0xFFF44336), // Red
+    Color(0xFF9C27B0), // Purple
+    Color(0xFF3F51B5), // Indigo
+    Color(0xFF009688), // Teal
+    Color(0xFF795548), // Brown
+    Color(0xFF607D8B), // Blue Grey
+    Color(0xFFFFEB3B), // Yellow
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -244,10 +288,8 @@ class _AddItemFormScreenState extends State<AddItemFormScreen> {
   }
 
   Color _getTagColor(String tag) {
-    final random = Random(tag.hashCode);
-    return Color.fromARGB(255, random.nextInt(256), random.nextInt(256), random.nextInt(256));
+    return tagColors[tag.hashCode % tagColors.length];
   }
-
   void _showAddRoomDialog(BuildContext context) {
     final TextEditingController roomController = TextEditingController();
     showDialog(
