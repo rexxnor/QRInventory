@@ -1,58 +1,72 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'dart:math';
 
 void main() {
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'QR Inventory',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
+    return ChangeNotifierProvider(
+      create: (_) => ItemProvider(),
+      child: MaterialApp(
+        title: 'Box Tracker',
+        home: HomeScreen(),
       ),
-      home: HomeScreen(),
     );
   }
 }
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class Item {
+  String qrCode;
+  String roomTag;
+  String name;
+  List<String> tags;
 
+  Item({required this.qrCode, required this.roomTag, required this.name, this.tags = const []});
+}
+
+class ItemProvider with ChangeNotifier {
+  List<Item> _items = [];
+  List<String> _rooms = [];
+
+  List<Item> get items => _items;
+  List<String> get rooms => _rooms;
+
+  void addItem(Item item) {
+    _items.add(item);
+    notifyListeners();
+  }
+
+  void addRoom(String room) {
+    if (!_rooms.contains(room)) {
+      _rooms.add(room);
+      notifyListeners();
+    }
+  }
+
+  List<Item> searchItems(String query) {
+    return _items.where((item) => item.name.contains(query) || item.tags.contains(query)).toList();
+  }
+}
+
+class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('QR Inventory'),
-      ),
-      body: Center(
+      appBar: AppBar(title: Text('Box Tracker')),
+      body: SafeArea(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Expanded(child: ItemList()),
             ElevatedButton(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => QRScanner()),
-                );
+                Navigator.of(context).push(MaterialPageRoute(builder: (context) => QRCodeScannerScreen()));
               },
-              child: Text('Scan QR Code'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => ItemList()),
-                );
-              },
-              child: Text('View Items'),
+              child: Text('Add Item via QR Code'),
             ),
           ],
         ),
@@ -61,8 +75,40 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class QRScanner extends StatelessWidget {
-  const QRScanner({super.key});
+class ItemList extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final itemProvider = Provider.of<ItemProvider>(context);
+    TextEditingController searchController = TextEditingController();
+
+    return Column(
+      children: [
+        TextField(
+          controller: searchController,
+          decoration: InputDecoration(labelText: 'Search Items'),
+          onChanged: (value) {
+            itemProvider.searchItems(value);
+          },
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: itemProvider.items.length,
+            itemBuilder: (context, index) {
+              final item = itemProvider.items[index];
+              return ListTile(
+                title: Text(item.name),
+                subtitle: Text('Room: ${item.roomTag}'),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class QRCodeScannerScreen extends StatelessWidget {
+
 
   @override
   Widget build(BuildContext context) {
@@ -71,252 +117,168 @@ class QRScanner extends StatelessWidget {
         title: Text('QR Scanner'),
       ),
       body: MobileScanner(
-        onDetect: (barcode) async {
-          String code = barcode.barcodes.first.rawValue!;
-          // Navigate to the item details page to add more info
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ItemDetails(code: code),
-            ),
-          );
-        },
+          onDetect: (barcode) async {
+            final String code = barcode.barcodes.first.rawValue!;
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (context) => AddItemFormScreen(qrCode: code),
+            ));
+          }
       ),
     );
   }
 }
 
-class ItemList extends StatefulWidget {
-  const ItemList({super.key});
+class AddItemFormScreen extends StatefulWidget {
+  final String qrCode;
+
+  AddItemFormScreen({required this.qrCode});
 
   @override
-  _ItemListState createState() => _ItemListState();
+  _AddItemFormScreenState createState() => _AddItemFormScreenState();
 }
 
-class _ItemListState extends State<ItemList> {
-  List<Item> items = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadItems();
-  }
-
-  Future<void> _loadItems() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    List<String>? itemList = prefs.getStringList('items');
-    if (itemList != null) {
-      setState(() {
-        items = itemList.map((item) => Item.fromJson(item)).toList();
-      });
-    }
-  }
-
-  Future<void> _saveItems() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    List<String> itemList = items.map((item) => item.toJson()).toList();
-    await prefs.setStringList('items', itemList);
-  }
-
-  void _editItem(Item item) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        TextEditingController nameController =
-        TextEditingController(text: item.name);
-        TextEditingController roomController =
-        TextEditingController(text: item.room);
-        String? selectedTag = item.tag;
-
-        return AlertDialog(
-          title: Text('Edit Item'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(labelText: 'Name'),
-              ),
-              TextField(
-                controller: roomController,
-                decoration: InputDecoration(labelText: 'Room'),
-              ),
-              DropdownButton<String>(
-                value: selectedTag,
-                hint: Text('Select Tag'),
-                items: ['Books', 'Plushies', 'Misc']
-                    .map((tag) => DropdownMenuItem(
-                  value: tag,
-                  child: Text(tag),
-                ))
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedTag = value;
-                  });
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  item.name = nameController.text;
-                  item.room = roomController.text;
-                  item.tag = selectedTag;
-                });
-                _saveItems();
-                Navigator.pop(context);
-              },
-              child: Text('Save'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: Text('Cancel'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+class _AddItemFormScreenState extends State<AddItemFormScreen> {
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController tagsController = TextEditingController();
+  String? selectedRoom;
+  List<String> tags = [];
 
   @override
   Widget build(BuildContext context) {
+    final itemProvider = Provider.of<ItemProvider>(context);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Items List'),
-      ),
-      body: ListView.builder(
-        itemCount: items.length,
-        itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(items[index].name),
-            subtitle: Text('Room: ${items[index].room}, Tag: ${items[index].tag}'),
-            onTap: () => _editItem(items[index]),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Navigate to add new item screen
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => ItemDetails()),
-          ).then((value) {
-            if (value != null) {
-              setState(() {
-                items.add(value);
-                _saveItems();
-              });
-            }
-          });
-        },
-        child: Icon(Icons.add),
-      ),
-    );
-  }
-}
-
-class ItemDetails extends StatefulWidget {
-  final String? code;
-
-  const ItemDetails({super.key, this.code});
-
-  @override
-  _ItemDetailsState createState() => _ItemDetailsState();
-}
-
-class _ItemDetailsState extends State<ItemDetails> {
-  TextEditingController codeController = TextEditingController();
-  TextEditingController nameController = TextEditingController();
-  TextEditingController roomController = TextEditingController();
-  String? selectedTag;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.code != null) {
-      codeController.text = widget.code!;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Item Details'),
+        title: Text('Add New Item'),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             TextField(
-              controller: codeController,
-              decoration: InputDecoration(labelText: 'QR Code'),
-            ),
-            TextField(
               controller: nameController,
-              decoration: InputDecoration(labelText: 'Name'),
-            ),
-            TextField(
-              controller: roomController,
-              decoration: InputDecoration(labelText: 'Room'),
+              decoration: InputDecoration(labelText: 'Item Name'),
+              onTap: () {
+                FocusScope.of(context).requestFocus(FocusNode()); // Dismiss keyboard
+              },
             ),
             DropdownButton<String>(
-              value: selectedTag,
-              hint: Text('Select Tag'),
-              items: ['Books', 'Plushies', 'Misc']
-                  .map((tag) => DropdownMenuItem(
-                value: tag,
-                child: Text(tag),
-              ))
-                  .toList(),
+              value: selectedRoom,
+              hint: Text('Select Room'),
+              items: itemProvider.rooms.map((room) {
+                return DropdownMenuItem<String>(
+                  value: room,
+                  child: Text(room),
+                );
+              }).toList()
+                ..add(DropdownMenuItem<String>(
+                  value: 'Add New Room',
+                  child: Text('Add New Room'),
+                )),
+              onChanged: (value) {
+                if (value == 'Add New Room') {
+                  _showAddRoomDialog(context);
+                } else {
+                  setState(() {
+                    selectedRoom = value;
+                  });
+                }
+              },
+            ),
+            TextField(
+              controller: tagsController,
+              decoration: InputDecoration(labelText: 'Tags (comma separated)'),
               onChanged: (value) {
                 setState(() {
-                  selectedTag = value;
+                  tags = value.split(',').map((tag) => tag.trim()).toList();
                 });
               },
+            ),
+            Wrap(
+              children: tags.map((tag) {
+                return Container(
+                  margin: EdgeInsets.all(4.0),
+                  padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                  decoration: BoxDecoration(
+                    color: _getTagColor(tag),
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                  child: Text(tag, style: TextStyle(color: Colors.white)),
+                );
+              }).toList(),
             ),
             SizedBox(height: 20),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context, Item(
-                  box: codeController.text,
+                if (nameController.text.isEmpty || selectedRoom == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Please fill in all fields.')),
+                  );
+                  return;
+                }
+
+                final item = Item(
+                  qrCode: widget.qrCode,
+                  roomTag: selectedRoom ?? '',
                   name: nameController.text,
-                  room: roomController.text,
-                  tag: selectedTag,
-                ));
+                  tags: tags,
+                );
+                itemProvider.addItem(item);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Item added successfully!')),
+                );
+                Navigator.of(context).pop();
               },
-              child: Text('Save Item'),
+              child: Text('Add Item'),
             ),
           ],
         ),
       ),
     );
   }
-}
-class Item {
-  String box;
-  String name;
-  String room;
-  String? tag;
 
-  Item({required this.box, required this.name, required this.room, this.tag});
-
-  String toJson() {
-    return '{"name": "$name", "room": "$room", "tag": "$tag"}';
+  Color _getTagColor(String tag) {
+    final random = Random(tag.hashCode);
+    return Color.fromARGB(255, random.nextInt(256), random.nextInt(256), random.nextInt(256));
   }
 
-  static Item fromJson(String json) {
-    final Map<String, dynamic> data = jsonDecode(json);
-    return Item(
-      box: data['box'],
-      name: data['name'],
-      room: data['room'],
-      tag: data['tag'],
+  void _showAddRoomDialog(BuildContext context) {
+    final TextEditingController roomController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Add New Room'),
+          content: TextField(
+            controller: roomController,
+            decoration: InputDecoration(labelText: 'Room Name'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                final roomName = roomController.text;
+                if (roomName.isNotEmpty) {
+                  Provider.of<ItemProvider>(context, listen: false).addRoom(roomName);
+                  Navigator.of(context).pop();
+                }
+              },
+              child: Text('Add'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Cancel'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
