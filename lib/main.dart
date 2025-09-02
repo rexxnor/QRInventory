@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -23,6 +24,19 @@ class DatabaseHelper {
     if (_database != null) return _database!;
     _database = await _initDB();
     return _database!;
+  }
+
+  Future<void> resetDatabase() async {
+    // Get the directory for the app's documents
+    String path = join(await getDatabasesPath(), 'items.db');
+
+    // Delete the database
+    try {
+      await deleteDatabase(path);
+      print("Database deleted successfully.");
+    } catch (e) {
+      print("Error deleting database: $e");
+    }
   }
 
   Future<Database> _initDB() async {
@@ -194,6 +208,7 @@ class HomeScreen extends StatelessWidget {
               },
               child: Text('Add Item via QR Code'),
             ),
+            ResetDataButton()
           ],
         ),
       ),
@@ -335,7 +350,7 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> with WidgetsB
 
     final String code = barcode.barcodes.first.rawValue!;
 
-    Navigator.of(context as BuildContext).push(MaterialPageRoute(
+    Navigator.of(this.context).push(MaterialPageRoute(
       builder: (context) => AddItemFormScreen(qrCode: code),
     )).then((_) {
       // Restart the scanner when returning from AddItemFormScreen
@@ -431,9 +446,9 @@ class _AddItemFormScreenState extends State<AddItemFormScreen> {
                 TextField(
                   controller: nameController,
                   decoration: InputDecoration(labelText: 'Item Name'),
-                  onTap: () {
-                    FocusScope.of(context).requestFocus(FocusNode()); // Dismiss keyboard
-                  },
+                  //onTap: () {
+                  //  FocusScope.of(context).requestFocus(FocusNode()); // Dismiss keyboard
+                  //},
                 ),
                 DropdownButton<String>(
                   value: selectedRoom,
@@ -573,6 +588,46 @@ class _AddItemFormScreenState extends State<AddItemFormScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+class ResetDataButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: () async {
+        // Show a confirmation dialog before deleting
+        bool? confirm = await showDialog<bool>(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text("Confirm Reset"),
+              content: Text("Are you sure you want to reset all data?"),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text("Cancel"),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: Text("Reset"),
+                ),
+              ],
+            );
+          },
+        );
+
+        if (confirm == true) {
+          await DatabaseHelper._instance.resetDatabase();
+          // Optionally, navigate to a different screen or show a success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Data has been reset.")),
+          );
+          SystemNavigator.pop();
+        }
+      },
+      child: Text("Reset All Data"),
     );
   }
 }
