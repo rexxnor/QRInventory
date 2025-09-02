@@ -124,7 +124,7 @@ class ItemList extends StatelessWidget {
                         color: _getTagColor(tag),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(tag, style: TextStyle(color: Colors.white)),
+                      child: Text(tag, style: TextStyle(color: _getTextColor(_getTagColor(tag)))),
                     );
                   }).toList(),
                 ),
@@ -298,7 +298,7 @@ class _AddItemFormScreenState extends State<AddItemFormScreen> {
                     color: _getTagColor(tag),
                     borderRadius: BorderRadius.circular(8.0),
                   ),
-                  child: Text(tag, style: TextStyle(color: Colors.white)),
+                  child: Text(tag, style: TextStyle(color: _getTextColor(_getTagColor(tag)))),
                 );
               }).toList(),
             ),
@@ -341,6 +341,11 @@ class _AddItemFormScreenState extends State<AddItemFormScreen> {
 
   Color _getTagColor(String tag) {
     return tagColors[tag.hashCode % tagColors.length];
+  }
+
+  Color _getTextColor(Color backgroundColor) {
+    // Calculate luminance to determine text color
+    return (backgroundColor.computeLuminance() > 0.5) ? Colors.black : Colors.white;
   }
 
   void _showAddRoomDialog(BuildContext context) {
