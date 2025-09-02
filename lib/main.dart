@@ -9,6 +9,8 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -22,6 +24,8 @@ class MyApp extends StatelessWidget {
 }
 
 class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -58,6 +62,8 @@ class HomeScreen extends StatelessWidget {
 }
 
 class QRScanner extends StatelessWidget {
+  const QRScanner({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -81,6 +87,8 @@ class QRScanner extends StatelessWidget {
 }
 
 class ItemList extends StatefulWidget {
+  const ItemList({super.key});
+
   @override
   _ItemListState createState() => _ItemListState();
 }
@@ -215,7 +223,7 @@ class _ItemListState extends State<ItemList> {
 class ItemDetails extends StatefulWidget {
   final String? code;
 
-  ItemDetails({this.code});
+  const ItemDetails({super.key, this.code});
 
   @override
   _ItemDetailsState createState() => _ItemDetailsState();
