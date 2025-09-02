@@ -7,6 +7,10 @@
 
 Manging different boxes and their contents with tags and QR codes
 
+> [!CAUTION]
+> There are some Google Apps required for some reason which was not
+> intentional. Mind the Firebase being enabled by default!
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.
