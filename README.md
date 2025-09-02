@@ -1,6 +1,11 @@
 # qrinventory
 
-Manging different boxes and their location in house
+> [!WARNING]
+> This repository contains code that is not tested extensively and is more of a
+> proof of concept to a storage and inventory management app coded in an
+> afternoon.
+
+Manging different boxes and their contents with tags and QR codes
 
 ## Getting Started
 
