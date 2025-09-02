@@ -1,10 +1,73 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+import 'dart:convert';
 
 void main() {
   runApp(MyApp());
 }
+
+class DatabaseHelper {
+  static final DatabaseHelper _instance = DatabaseHelper._internal();
+  factory DatabaseHelper() => _instance;
+
+  DatabaseHelper._internal();
+
+  Database? _database;
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDB();
+    return _database!;
+  }
+
+  Future<Database> _initDB() async {
+    String path = join(await getDatabasesPath(), 'items.db');
+    return await openDatabase(
+      path,
+      version: 1,
+      onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE items(
+            qrCode TEXT PRIMARY KEY,
+            roomTag TEXT,
+            name TEXT,
+            tags TEXT
+          )
+        ''');
+      },
+    );
+  }
+
+  Future<void> insertItem(Item item) async {
+    final db = await database;
+    await db.insert('items', item.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Item>> getItems() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('items');
+
+    return List.generate(maps.length, (i) {
+      return Item.fromMap(maps[i]);
+    });
+  }
+
+  Future<void> deleteItem(String qrCode) async {
+    final db = await database;
+    await db.delete('items', where: 'qrCode = ?', whereArgs: [qrCode]);
+  }
+
+  Future<void> updateItem(Item item) async {
+    final db = await database;
+    await db.update('items', item.toMap(), where: 'qrCode = ?', whereArgs: [item.qrCode]);
+  }
+}
+
 
 class MyApp extends StatelessWidget {
   @override
@@ -23,14 +86,39 @@ class MyApp extends StatelessWidget {
   }
 }
 
+
 class Item {
   String qrCode;
   String roomTag;
   String name;
   List<String> tags;
 
-  Item({required this.qrCode, required this.roomTag, required this.name, this.tags = const []});
+  Item({
+    required this.qrCode,
+    required this.roomTag,
+    required this.name,
+    this.tags = const [],
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'qrCode': qrCode,
+      'roomTag': roomTag,
+      'name': name,
+      'tags': json.encode(tags), // Store tags as a JSON string
+    };
+  }
+
+  factory Item.fromMap(Map<String, dynamic> map) {
+    return Item(
+      qrCode: map['qrCode'],
+      roomTag: map['roomTag'],
+      name: map['name'],
+      tags: List<String>.from(json.decode(map['tags'])), // Decode JSON string back to List
+    );
+  }
 }
+
 
 class ItemProvider with ChangeNotifier {
   List<Item> _items = [];
@@ -43,24 +131,50 @@ class ItemProvider with ChangeNotifier {
     'Misc.',
   ];
 
+  bool _isLoading = true;
+
   List<Item> get items => _items;
   List<String> get rooms => _rooms;
   List<String> get globalTags => _globalTags;
+  bool get isLoading => _isLoading;
 
-  void addItem(Item item) {
-    _items.add(item);
-    notifyListeners();
+  ItemProvider() {
+    _loadItems(); // Load items from SQLite on initialization
+    _loadRooms(); // Load rooms from SQLite on initialization
   }
 
-  void addRoom(String room) {
+  Future<void> _loadItems() async {
+    _items = await DatabaseHelper().getItems(); // Fetch items from the database
+    _isLoading = false; // Update loading state
+    notifyListeners(); // Notify listeners about the change
+  }
+
+  Future<void> addItem(Item item) async {
+    await DatabaseHelper().insertItem(item); // Insert item into the database
+    _items.add(item); // Add item to the local list
+    notifyListeners(); // Notify listeners about the change
+  }
+
+  Future<void> addRoom(String room) async {
     if (!_rooms.contains(room)) {
-      _rooms.add(room);
-      notifyListeners();
+      _rooms.add(room); // Add room to the local list
+      notifyListeners(); // Notify listeners about the change
+      // You may want to implement a method to save rooms to the database if needed
     }
   }
 
+  Future<void> _loadRooms() async {
+    // If you want to manage rooms in SQLite, implement a method in DatabaseHelper
+    // For now, this can be left empty or you can load from a different table
+    notifyListeners(); // Notify listeners about the change
+  }
+
   List<Item> searchItems(String query) {
-    return _items.where((item) => item.name.contains(query) || item.tags.contains(query) || item.roomTag.contains(query)).toList();
+    return _items.where((item) =>
+    item.name.contains(query) ||
+        item.tags.contains(query) ||
+        item.roomTag.contains(query)
+    ).toList();
   }
 }
 
@@ -106,7 +220,9 @@ class ItemList extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView.builder(
+          child: itemProvider.isLoading
+              ? Center(child: CircularProgressIndicator()) // Show loading indicator
+              : ListView.builder(
             itemCount: itemProvider.items.length,
             itemBuilder: (context, index) {
               final item = itemProvider.items[index];
@@ -164,12 +280,79 @@ class QRCodeScannerScreen extends StatefulWidget {
   @override
   _QRCodeScannerScreenState createState() => _QRCodeScannerScreenState();
 }
-class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
-  MobileScannerController controller = MobileScannerController();
+
+class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> with WidgetsBindingObserver {
+  final MobileScannerController controller = MobileScannerController(autoStart: false);
+  StreamSubscription<Object?>? _subscription;
+  bool isProcessing = false;
 
   @override
-  void dispose() {
-    controller.dispose(); // Dispose of the controller to release resources
+  void initState() {
+    super.initState();
+    // Start listening to lifecycle changes.
+    WidgetsBinding.instance.addObserver(this);
+
+    // Start listening to the barcode events.
+    _subscription = controller.barcodes.listen(_handleBarcode);
+
+    // Finally, start the scanner itself.
+    unawaited(controller.start());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // If the controller is not ready, do not try to start or stop it.
+    if (!controller.value.hasCameraPermission) {
+      return;
+    }
+
+    switch (state) {
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      // Stop the scanner when the app is paused.
+        unawaited(_subscription?.cancel());
+        _subscription = null;
+        unawaited(controller.stop());
+        break;
+      case AppLifecycleState.resumed:
+      // Restart the scanner when the app is resumed.
+        _subscription = controller.barcodes.listen(_handleBarcode);
+        unawaited(controller.start());
+        break;
+      case AppLifecycleState.inactive:
+      // Stop the scanner when the app is inactive.
+        unawaited(_subscription?.cancel());
+        _subscription = null;
+        unawaited(controller.stop());
+        break;
+    }
+  }
+
+  void _handleBarcode(BarcodeCapture barcode) async {
+    if (isProcessing) return; // Prevent multiple scans
+    isProcessing = true;
+
+    final String code = barcode.barcodes.first.rawValue!;
+
+    Navigator.of(context as BuildContext).push(MaterialPageRoute(
+      builder: (context) => AddItemFormScreen(qrCode: code),
+    )).then((_) {
+      // Restart the scanner when returning from AddItemFormScreen
+      unawaited(controller.start());
+      isProcessing = false; // Reset the flag after navigation
+    });
+  }
+
+  @override
+  Future<void> dispose() async {
+    // Stop listening to lifecycle changes.
+    WidgetsBinding.instance.removeObserver(this);
+    // Stop listening to the barcode events.
+    await _subscription?.cancel();
+    _subscription = null;
+    // Dispose the controller.
+    await controller.dispose();
     super.dispose();
   }
 
@@ -180,20 +363,16 @@ class _QRCodeScannerScreenState extends State<QRCodeScannerScreen> {
         title: Text('QR Scanner'),
       ),
       body: SafeArea(
-        child:
-        MobileScanner(
-            onDetect: (barcode) async {
-              final String code = barcode.barcodes.first.rawValue!;
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) => AddItemFormScreen(qrCode: code),
-              ));
-            }
+        child: MobileScanner(
+          controller: controller,
+          onDetect: (barcode) {
+            _handleBarcode(barcode);
+          },
         ),
       ),
     );
   }
 }
-
 
 class AddItemFormScreen extends StatefulWidget {
   final String qrCode;
