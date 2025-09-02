@@ -12,6 +12,7 @@ void main() {
   runApp(MyApp());
 }
 
+
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   factory DatabaseHelper() => _instance;
@@ -46,12 +47,13 @@ class DatabaseHelper {
       version: 1,
       onCreate: (db, version) async {
         await db.execute('''
-          CREATE TABLE items(
-            qrCode TEXT PRIMARY KEY,
-            roomTag TEXT,
-            name TEXT,
-            tags TEXT
-          )
+        CREATE TABLE items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          qrCode TEXT UNIQUE NOT NULL,
+          roomTag TEXT,
+          name TEXT NOT NULL,
+          tags TEXT
+        )
         ''');
       },
     );
